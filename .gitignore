@@ -1,1 +1,7 @@
 /target
+
+# Generated media files
+*.mp4
+*.wav
+*.json
+*.report.json
