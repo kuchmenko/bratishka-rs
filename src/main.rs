@@ -1,10 +1,10 @@
 use std::{
     hash::{DefaultHasher, Hash, Hasher},
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::Duration,
 };
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use console::style;
 use indicatif::{ProgressBar, ProgressStyle};
 use serde::{Deserialize, Serialize};
@@ -66,11 +66,80 @@ struct Chapter {
     summary: String,
 }
 
-async fn download_video(url: &str) -> Result<PathBuf, TranscriptError> {
+#[derive(Clone, Default, ValueEnum)]
+enum Provider {
+    #[default]
+    Grok,
+    Openai,
+    Gemini,
+}
+
+struct ProviderConfig {
+    api_url: &'static str,
+    model: &'static str,
+    env_var: &'static str,
+}
+
+impl Provider {
+    fn config(&self) -> ProviderConfig {
+        match self {
+            Provider::Grok => ProviderConfig {
+                api_url: "https://api.x.ai/v1/chat/completions",
+                model: "grok-4-fast",
+                env_var: "XAI_API_KEY",
+            },
+            Provider::Openai => ProviderConfig {
+                api_url: "https://api.openai.com/v1/chat/completions",
+                model: "gpt-5.1",
+                env_var: "OPENAI_API_KEY",
+            },
+            Provider::Gemini => ProviderConfig {
+                api_url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+                model: "gemini-3-pro",
+                env_var: "GEMINI_API_KEY",
+            },
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        match self {
+            Provider::Grok => "Grok",
+            Provider::Openai => "OpenAI",
+            Provider::Gemini => "Gemini",
+        }
+    }
+}
+
+fn get_cache_dir(url: &str) -> PathBuf {
     let mut hasher = DefaultHasher::new();
     url.hash(&mut hasher);
-    let hashed_url = hasher.finish();
-    let output_template = format!("{}.%(ext)s", hashed_url);
+    let url_hash = hasher.finish();
+
+    dirs::cache_dir()
+        .unwrap_or_else(|| PathBuf::from("/tmp"))
+        .join("bratishka")
+        .join(url_hash.to_string())
+}
+
+fn find_video_in_cache(cache_dir: &Path) -> Option<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(cache_dir) else {
+        return None;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if let Some(ext) = path.extension() {
+            let ext = ext.to_string_lossy().to_lowercase();
+            if matches!(ext.as_str(), "mp4" | "webm" | "mkv" | "mov" | "avi") {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
+async fn download_video(url: &str, cache_dir: &Path) -> Result<PathBuf, TranscriptError> {
+    let output_template = cache_dir.join("video.%(ext)s");
     let output = Command::new("yt-dlp")
         .arg(url)
         .arg("--print")
@@ -87,7 +156,7 @@ async fn download_video(url: &str) -> Result<PathBuf, TranscriptError> {
     if !output.status.success() {
         return Err(TranscriptError::DownloadFailed {
             url: url.to_string(),
-            reason: "Video file download failed".to_string(),
+            reason: String::from_utf8_lossy(&output.stderr).to_string(),
         });
     };
 
@@ -99,12 +168,11 @@ async fn download_video(url: &str) -> Result<PathBuf, TranscriptError> {
     Ok(path)
 }
 
-async fn extract_audio(video_path: PathBuf) -> Result<PathBuf, TranscriptError> {
-    let audio_path = video_path.with_extension("wav");
+async fn extract_audio(video_path: &Path, audio_path: &Path) -> Result<(), TranscriptError> {
     let output = Command::new("ffmpeg")
         .arg("-y")
         .arg("-i")
-        .arg(&video_path)
+        .arg(video_path)
         .arg("-vn")
         .arg("-acodec")
         .arg("pcm_s16le")
@@ -112,40 +180,55 @@ async fn extract_audio(video_path: PathBuf) -> Result<PathBuf, TranscriptError> 
         .arg("16000")
         .arg("-ac")
         .arg("1")
-        .arg(&audio_path)
+        .arg(audio_path)
         .output()
         .await?;
 
     if !output.status.success() {
         return Err(TranscriptError::AudioExtractionFailed {
-            video_path,
+            video_path: video_path.to_path_buf(),
             reason: String::from_utf8_lossy(&output.stderr).to_string(),
         });
     };
 
-    Ok(audio_path)
+    Ok(())
 }
 
-async fn transcribe_audio(audio_path: PathBuf) -> Result<Transcript, TranscriptError> {
-    let json_path = audio_path.with_extension("json");
+async fn transcribe_audio(
+    audio_path: &Path,
+    output_path: &Path,
+) -> Result<Transcript, TranscriptError> {
+    // Whisper outputs to same dir as input with .json extension
+    // We need to use output_dir to control where it writes
+    let output_dir = output_path.parent().unwrap_or(std::path::Path::new("."));
 
     let output = Command::new("whisper")
-        .arg(&audio_path)
+        .arg(audio_path)
         .arg("--model")
         .arg("base")
         .arg("--output_format")
         .arg("json")
+        .arg("--output_dir")
+        .arg(output_dir)
         .output()
         .await?;
 
     if !output.status.success() {
         return Err(TranscriptError::TranscriptFailed {
-            audio_path,
+            audio_path: audio_path.to_path_buf(),
             reason: String::from_utf8_lossy(&output.stderr).to_string(),
         });
     };
 
-    let json_content = fs::read_to_string(&json_path).await?;
+    // Whisper names output based on input filename
+    let whisper_output = output_dir.join("audio.json");
+
+    // Rename to our expected path if different
+    if whisper_output != output_path {
+        fs::rename(&whisper_output, output_path).await?;
+    }
+
+    let json_content = fs::read_to_string(output_path).await?;
     let transcript: Transcript = serde_json::from_str(&json_content)?;
 
     Ok(transcript)
@@ -169,8 +252,10 @@ fn format_transcript_with_timestamps(transcript: &Transcript) -> String {
 async fn generate_report(
     transcript: Transcript,
     report_lang: &str,
+    provider: &Provider,
 ) -> Result<VideoReport, TranscriptError> {
-    let xai_api_key = std::env::var("XAI_API_KEY").expect("XAI_API_KEY is not set");
+    let config = provider.config();
+    let api_key = std::env::var(config.env_var).expect("validated at startup");
 
     let duration_seconds = transcript.segments.last().map(|s| s.end).unwrap_or(0.0);
     let duration_minutes = duration_seconds / 60.0;
@@ -213,11 +298,11 @@ Rules:
     );
 
     let response = reqwest::Client::new()
-        .post("https://api.x.ai/v1/chat/completions")
+        .post(config.api_url)
         .header("Content-Type", "application/json")
-        .header("Authorization", format!("Bearer {}", xai_api_key))
+        .header("Authorization", format!("Bearer {}", api_key))
         .json(&serde_json::json!({
-            "model": "grok-4-fast",
+            "model": config.model,
             "messages": [
                 {
                     "role": "system",
@@ -327,12 +412,36 @@ struct Cli {
     /// Report language (e.g., "en", "ru", "uk"). Defaults to video's detected language.
     #[arg(short, long)]
     lang: Option<String>,
+
+    /// AI provider for report generation
+    #[arg(short, long, default_value = "grok")]
+    provider: Provider,
+
+    /// Force re-processing even if cached files exist
+    #[arg(short, long)]
+    force: bool,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+
+    // Validate API key early
+    let config = cli.provider.config();
+    if std::env::var(config.env_var).is_err() {
+        eprintln!(
+            "{} {} environment variable is not set",
+            style("Error:").red().bold(),
+            config.env_var
+        );
+        std::process::exit(1);
+    }
+
     let url = cli.url;
+
+    // Setup cache directory
+    let cache_dir = get_cache_dir(&url);
+    fs::create_dir_all(&cache_dir).await?;
 
     println!(
         "\n{}  {}\n",
@@ -340,50 +449,127 @@ async fn main() -> anyhow::Result<()> {
         style("Video Analyzer").dim()
     );
 
-    // Step 1: Download
-    let spinner = create_spinner("Downloading video...");
-    let video_file = download_video(&url).await?;
-    spinner.finish_with_message(format!(
-        "{} Downloaded: {}",
-        style("✓").green().bold(),
-        style(video_file.file_name().unwrap().to_string_lossy()).dim()
-    ));
+    // Step 1: Download (check cache)
+    let video_file = if !cli.force {
+        if let Some(cached) = find_video_in_cache(&cache_dir) {
+            println!(
+                "{} Downloaded {}",
+                style("✓").green().bold(),
+                style("(cached)").dim()
+            );
+            cached
+        } else {
+            let spinner = create_spinner("Downloading video...");
+            let video = download_video(&url, &cache_dir).await?;
+            spinner.finish_with_message(format!(
+                "{} Downloaded: {}",
+                style("✓").green().bold(),
+                style(video.file_name().unwrap().to_string_lossy()).dim()
+            ));
+            video
+        }
+    } else {
+        let spinner = create_spinner("Downloading video...");
+        let video = download_video(&url, &cache_dir).await?;
+        spinner.finish_with_message(format!(
+            "{} Downloaded: {}",
+            style("✓").green().bold(),
+            style(video.file_name().unwrap().to_string_lossy()).dim()
+        ));
+        video
+    };
 
-    // Step 2: Extract audio
-    let spinner = create_spinner("Extracting audio...");
-    let audio_file = extract_audio(video_file.clone()).await?;
-    spinner.finish_with_message(format!("{} Audio extracted", style("✓").green().bold()));
+    // Step 2: Extract audio (check cache)
+    let audio_file = cache_dir.join("audio.wav");
+    if !cli.force && audio_file.exists() {
+        println!(
+            "{} Audio extracted {}",
+            style("✓").green().bold(),
+            style("(cached)").dim()
+        );
+    } else {
+        let spinner = create_spinner("Extracting audio...");
+        extract_audio(&video_file, &audio_file).await?;
+        spinner.finish_with_message(format!("{} Audio extracted", style("✓").green().bold()));
+    }
 
-    // Step 3: Transcribe
-    let spinner = create_spinner("Transcribing with Whisper...");
-    let transcript = transcribe_audio(audio_file).await?;
-    let duration_mins = transcript
-        .segments
-        .last()
-        .map(|s| s.end / 60.0)
-        .unwrap_or(0.0);
-    spinner.finish_with_message(format!(
-        "{} Transcribed: {:.1} min, {} detected",
-        style("✓").green().bold(),
-        duration_mins,
-        style(&transcript.language).yellow()
-    ));
+    // Step 3: Transcribe (check cache)
+    let transcript_path = cache_dir.join("transcript.json");
+    let transcript = if !cli.force && transcript_path.exists() {
+        let json_content = fs::read_to_string(&transcript_path).await?;
+        let transcript: Transcript = serde_json::from_str(&json_content)?;
+        let duration_mins = transcript
+            .segments
+            .last()
+            .map(|s| s.end / 60.0)
+            .unwrap_or(0.0);
+        println!(
+            "{} Transcribed: {:.1} min, {} {}",
+            style("✓").green().bold(),
+            duration_mins,
+            style(&transcript.language).yellow(),
+            style("(cached)").dim()
+        );
+        transcript
+    } else {
+        let spinner = create_spinner("Transcribing with Whisper...");
+        let transcript = transcribe_audio(&audio_file, &transcript_path).await?;
+        let duration_mins = transcript
+            .segments
+            .last()
+            .map(|s| s.end / 60.0)
+            .unwrap_or(0.0);
+        spinner.finish_with_message(format!(
+            "{} Transcribed: {:.1} min, {} detected",
+            style("✓").green().bold(),
+            duration_mins,
+            style(&transcript.language).yellow()
+        ));
+        transcript
+    };
 
-    // Step 4: Generate report
+    // Step 4: Generate report (check cache with provider+lang)
     let report_lang = cli.lang.unwrap_or_else(|| transcript.language.clone());
-    let spinner = create_spinner(&format!("Generating {} report with AI...", report_lang));
-    let report = generate_report(transcript, &report_lang).await?;
-    spinner.finish_with_message(format!("{} Report generated", style("✓").green().bold()));
+    let provider_name = match cli.provider {
+        Provider::Grok => "grok",
+        Provider::Openai => "openai",
+        Provider::Gemini => "gemini",
+    };
+    let report_filename = format!("report_{}_{}.json", provider_name, report_lang);
+    let report_path = cache_dir.join(&report_filename);
 
-    // Save JSON
-    let json_path = video_file.with_extension("report.json");
-    let pretty_json = serde_json::to_string_pretty(&report)?;
-    fs::write(&json_path, &pretty_json).await?;
+    let report = if !cli.force && report_path.exists() {
+        let json_content = fs::read_to_string(&report_path).await?;
+        let report: VideoReport = serde_json::from_str(&json_content)?;
+        println!(
+            "{} Report generated ({}) {}",
+            style("✓").green().bold(),
+            cli.provider.name(),
+            style("(cached)").dim()
+        );
+        report
+    } else {
+        let spinner = create_spinner(&format!(
+            "Generating {} report with {}...",
+            report_lang,
+            cli.provider.name()
+        ));
+        let report = generate_report(transcript, &report_lang, &cli.provider).await?;
+        // Save to cache
+        let pretty_json = serde_json::to_string_pretty(&report)?;
+        fs::write(&report_path, &pretty_json).await?;
+        spinner.finish_with_message(format!(
+            "{} Report generated ({})",
+            style("✓").green().bold(),
+            cli.provider.name()
+        ));
+        report
+    };
 
     println!(
         "\n{} {}\n",
         style("Saved:").dim(),
-        style(json_path.display()).cyan()
+        style(report_path.display()).cyan()
     );
     println!("{}", style("─".repeat(60)).dim());
 
