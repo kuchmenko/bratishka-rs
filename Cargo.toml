@@ -2,6 +2,11 @@
 name = "bratishka"
 version = "0.1.0"
 edition = "2024"
+description = "CLI tool to download YouTube videos, transcribe with Whisper, and generate AI-powered reports"
+license = "MIT"
+repository = "https://github.com/kuchmenko/bratishka-rs"
+keywords = ["youtube", "transcription", "whisper", "cli", "ai"]
+categories = ["command-line-utilities", "multimedia"]
 
 [dependencies]
 anyhow = "1.0.100"
