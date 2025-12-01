@@ -26,6 +26,9 @@ pub enum BratishkaError {
 
     #[error("Missing API key: {env_var} environment variable is not set")]
     MissingApiKey { env_var: String },
+
+    #[error("Model download failed: {url}: {reason}")]
+    ModelDownloadFailed { url: String, reason: String },
 }
 
 pub type Result<T> = std::result::Result<T, BratishkaError>;

@@ -1,13 +1,50 @@
 use std::path::{Path, PathBuf};
 
 use tokio::{fs, process::Command};
+use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
 use crate::{
+    Segment,
+    cache::get_model_dir,
     error::{BratishkaError, Result},
     format::format_transcript_with_timestamps,
     provider::Provider,
     types::{Transcript, VideoReport},
 };
+
+pub const MODEL_NAME: &str = "ggml-medium-q5_0.bin";
+
+pub async fn ensure_model(cache_dir: &Path) -> Result<PathBuf> {
+    let download_url = format!(
+        "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{}",
+        MODEL_NAME
+    );
+    let model_dir = get_model_dir(cache_dir);
+
+    if !model_dir.exists() {
+        fs::create_dir_all(&model_dir).await?;
+    }
+
+    let model_path = model_dir.join(MODEL_NAME);
+    if !model_path.exists() {
+        let output = Command::new("curl")
+            .arg("-L")
+            .arg(&download_url)
+            .arg("-o")
+            .arg(&model_path)
+            .output()
+            .await?;
+
+        if !output.status.success() {
+            return Err(BratishkaError::ModelDownloadFailed {
+                url: download_url.to_string(),
+                reason: String::from_utf8_lossy(&output.stderr).to_string(),
+            });
+        }
+    }
+
+    Ok(model_path)
+}
 
 /// Download a video from URL using yt-dlp
 pub async fn download_video(url: &str, cache_dir: &Path) -> Result<PathBuf> {
@@ -43,9 +80,6 @@ pub async fn extract_audio(video_path: &Path, audio_path: &Path) -> Result<()> {
         .arg("-y")
         .arg("-i")
         .arg(video_path)
-        .arg("-vn")
-        .arg("-acodec")
-        .arg("pcm_s16le")
         .arg("-ar")
         .arg("16000")
         .arg("-ac")
@@ -64,38 +98,58 @@ pub async fn extract_audio(video_path: &Path, audio_path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Transcribe audio using Whisper
-pub async fn transcribe_audio(audio_path: &Path, output_path: &Path) -> Result<Transcript> {
-    let output_dir = output_path.parent().unwrap_or(Path::new("."));
+/// Transcribe audio using faster-whisper with distil model
+pub async fn transcribe_audio(
+    audio_path: &Path,
+    output_path: &Path,
+    model_path: &str,
+) -> Result<Transcript> {
+    let mut reader = hound::WavReader::open(audio_path).unwrap();
+    let samples: Vec<f32> = reader
+        .samples::<i16>()
+        .map(|s| s.unwrap() as f32 / i16::MAX as f32)
+        .collect();
+    // load a context and model
+    let mut ctx_params = WhisperContextParameters::default();
+    ctx_params.flash_attn = true;
+    let ctx =
+        WhisperContext::new_with_params(model_path, ctx_params).expect("failed to load model");
 
-    let output = Command::new("whisper")
-        .arg(audio_path)
-        .arg("--model")
-        .arg("base")
-        .arg("--output_format")
-        .arg("json")
-        .arg("--output_dir")
-        .arg(output_dir)
-        .output()
-        .await?;
+    // create a params object
+    let params = FullParams::new(SamplingStrategy::Greedy { best_of: 5 });
 
-    if !output.status.success() {
-        return Err(BratishkaError::TranscriptFailed {
-            audio_path: audio_path.to_path_buf(),
-            reason: String::from_utf8_lossy(&output.stderr).to_string(),
-        });
+    // now we can run the model
+    let mut state = ctx.create_state().expect("failed to create state");
+    state.full(params, &samples).expect("failed to run model");
+
+    let mut text = String::new();
+    let mut segments: Vec<Segment> = Vec::new();
+
+    for segment in state.as_iter() {
+        let seg_text = match segment.to_str() {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        let seg = Segment {
+            start: segment.start_timestamp() as f64 / 100.0,
+            end: segment.end_timestamp() as f64 / 100.0,
+            text: seg_text.to_string(),
+        };
+        segments.push(seg);
+
+        text.push_str(seg_text);
     }
 
-    // Whisper names output based on input filename
-    let whisper_output = output_dir.join("audio.json");
+    let language_index = state.full_lang_id_from_state();
+    let language = whisper_rs::get_lang_str(language_index);
 
-    // Rename to our expected path if different
-    if whisper_output != output_path {
-        fs::rename(&whisper_output, output_path).await?;
-    }
+    let transcript = Transcript {
+        language: language.unwrap_or("Unknown").to_string(),
+        segments,
+        text,
+    };
 
-    let json_content = fs::read_to_string(output_path).await?;
-    let transcript: Transcript = serde_json::from_str(&json_content)?;
+    fs::write(output_path, serde_json::to_string_pretty(&transcript)?).await?;
 
     Ok(transcript)
 }

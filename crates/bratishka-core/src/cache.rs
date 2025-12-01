@@ -10,11 +10,19 @@ pub fn get_cache_dir(url: &str) -> PathBuf {
     let mut hasher = DefaultHasher::new();
     url.hash(&mut hasher);
     let url_hash = hasher.finish();
+    let cache_dir = get_root_cache_dir();
 
+    cache_dir.join(url_hash.to_string())
+}
+
+pub fn get_root_cache_dir() -> PathBuf {
     dirs::cache_dir()
         .unwrap_or_else(|| PathBuf::from("/tmp"))
         .join("bratishka")
-        .join(url_hash.to_string())
+}
+
+pub fn get_model_dir(cache_dir: &Path) -> PathBuf {
+    cache_dir.join("models")
 }
 
 /// Find a video file in the cache directory

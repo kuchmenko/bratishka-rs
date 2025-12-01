@@ -20,3 +20,4 @@ indicatif = { workspace = true }
 console = { workspace = true }
 anyhow = { workspace = true }
 serde_json = { workspace = true }
+whisper-rs = { workspace = true }

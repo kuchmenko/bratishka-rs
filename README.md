@@ -5,16 +5,17 @@ CLI tool to download YouTube videos, transcribe with Whisper, and generate AI-po
 ## Features
 
 - Download videos from YouTube using yt-dlp
-- Extract audio and transcribe with OpenAI Whisper
+- Native Rust transcription with [whisper-rs](https://github.com/tazz4843/whisper-rs) (CUDA accelerated)
 - Generate structured reports with AI (Grok, OpenAI, or Gemini)
 - Smart caching - skip already-completed steps
 - Multi-language report generation
+- Auto-downloads Whisper model on first run
 
 ## Requirements
 
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) - Video downloader
 - [ffmpeg](https://ffmpeg.org/) - Audio extraction
-- [whisper](https://github.com/openai/whisper) - Speech-to-text
+- NVIDIA GPU with CUDA (optional, falls back to CPU)
 - One of: `XAI_API_KEY`, `OPENAI_API_KEY`, or `GEMINI_API_KEY`
 
 ### Install dependencies
@@ -22,15 +23,12 @@ CLI tool to download YouTube videos, transcribe with Whisper, and generate AI-po
 ```bash
 # macOS
 brew install yt-dlp ffmpeg
-pip install openai-whisper
 
 # Arch Linux
 sudo pacman -S yt-dlp ffmpeg
-pip install openai-whisper
 
 # Ubuntu/Debian
-sudo apt install ffmpeg
-pip install yt-dlp openai-whisper
+sudo apt install yt-dlp ffmpeg
 ```
 
 ## Installation
