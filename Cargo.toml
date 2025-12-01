@@ -19,3 +19,4 @@ dirs = "6.0.0"
 clap = { version = "4.0.32", features = ["derive"] }
 indicatif = "0.18.3"
 console = "0.16.1"
+iced = "0.13"
