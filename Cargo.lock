@@ -81,10 +81,19 @@ name = "bratishka"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bratishka-core",
  "clap",
  "console",
- "dirs",
  "indicatif",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "bratishka-core"
+version = "0.1.0"
+dependencies = [
+ "dirs",
  "reqwest",
  "serde",
  "serde_json",

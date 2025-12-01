@@ -1,0 +1,22 @@
+[package]
+name = "bratishka"
+description = "CLI tool to download YouTube videos, transcribe with Whisper, and generate AI-powered reports"
+keywords = ["youtube", "transcription", "whisper", "cli", "ai"]
+categories = ["command-line-utilities", "multimedia"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "bratishka"
+path = "src/main.rs"
+
+[dependencies]
+bratishka-core = { path = "../bratishka-core" }
+tokio = { workspace = true }
+clap = { workspace = true }
+indicatif = { workspace = true }
+console = { workspace = true }
+anyhow = { workspace = true }
+serde_json = { workspace = true }
