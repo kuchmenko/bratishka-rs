@@ -98,7 +98,7 @@ pub async fn extract_audio(video_path: &Path, audio_path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Transcribe audio using faster-whisper with distil model
+/// Transcribe audio using whisper-rs with passed model
 pub async fn transcribe_audio(
     audio_path: &Path,
     output_path: &Path,
@@ -109,8 +109,13 @@ pub async fn transcribe_audio(
         .samples::<i16>()
         .map(|s| s.unwrap() as f32 / i16::MAX as f32)
         .collect();
+
     // load a context and model
-    let mut ctx_params = WhisperContextParameters::default();
+    let mut ctx_params = WhisperContextParameters {
+        use_gpu: true,
+        flash_attn: true,
+        ..Default::default()
+    };
     ctx_params.flash_attn = true;
     let ctx =
         WhisperContext::new_with_params(model_path, ctx_params).expect("failed to load model");
