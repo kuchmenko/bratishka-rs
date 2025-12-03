@@ -13,7 +13,7 @@ name = "bratishka"
 path = "src/main.rs"
 
 [dependencies]
-bratishka-core = { path = "../bratishka-core" }
+bratishka-core = { path = "../../crates/core" }
 tokio = { workspace = true }
 clap = { workspace = true }
 indicatif = { workspace = true }
