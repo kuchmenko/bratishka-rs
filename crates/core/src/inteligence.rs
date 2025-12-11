@@ -84,8 +84,8 @@ pub async fn analyze_sections(
         .header("Authorization", format!("Bearer {}", api_key))
         .json(&serde_json::json!({
             "model": config.model,
-            // "tools": [{"type": "web_search"}],
-            "messages": [
+            "tools": [{"type": "web_search"}],
+            "input": [
                 {
                     "role": "system",
                     "content": SECTIONS_ANALYSIS_PROMPT,
@@ -103,11 +103,13 @@ pub async fn analyze_sections(
 
     let response = response.json::<serde_json::Value>().await?;
 
-    // Extract content from response
-    let content = response["choices"][0]["message"]["content"]
-        .as_str()
+    // Extract content from response - /v1/responses format
+    let content = response["output"]
+        .as_array()
+        .and_then(|arr| arr.iter().rev().find(|item| item["type"] == "message"))
+        .and_then(|msg| msg["content"][0]["text"].as_str())
         .ok_or_else(|| InteligenceError::ProcessSectionsFailed {
-            reason: format!("Invalid API response: {:?}", response),
+            reason: format!("Invalid API response structure: {:?}", response),
         })?;
 
     Ok(serde_json::from_str(content)?)

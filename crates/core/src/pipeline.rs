@@ -7,7 +7,6 @@ use crate::{
     Segment,
     cache::get_model_dir,
     error::{BratishkaError, Result},
-    format::format_transcript_with_timestamps,
     inteligence::analyze_sections,
     provider::Provider,
     types::{Transcript, VideoReport},
@@ -181,35 +180,50 @@ pub async fn generate_report(
 
     let sections = analyze_sections(provider, transcript).await?;
 
-    println!("SECTIONS: {:?}", sections);
-
     let system_prompt = format!(
-        r#"You are a video content analyzer. Your task is to analyze video transcripts and generate structured reports.
+        r#"You are a report compiler with web search access. Synthesize pre-analyzed sections into a comprehensive, easy-to-read report.
 
-IMPORTANT: Write ALL text content (title, summary, topics, takeaways, chapter titles/summaries, prerequisites, target_audience) in {lang} language.
+  IMPORTANT: Write ALL content in {lang} language.
 
-You MUST output ONLY valid JSON matching this exact structure (no markdown, no explanation):
-{{
-  "title": "Descriptive title for the video",
-  "summary": "2-3 sentence summary of the entire video content",
-  "duration_minutes": <number>,
-  "language": "{lang}",
-  "difficulty": "Beginner|Intermediate|Advanced",
-  "topics": ["topic1", "topic2", "topic3"],
-  "key_takeaways": ["takeaway1", "takeaway2", "takeaway3", "takeaway4", "takeaway5"],
-  "chapters": [
-    {{"start_seconds": 0, "end_seconds": 180, "title": "Chapter title", "summary": "1-2 sentence chapter summary"}}
-  ],
-  "prerequisites": ["prerequisite1", "prerequisite2"],
-  "target_audience": "Description of who this video is for"
-}}
+  INPUT: Pre-analyzed sections with summaries, key_concepts, and external_context
 
-Rules:
-- Identify 5-10 logical chapters based on topic changes
-- Use actual timestamps from the transcript for chapter boundaries
-- Key takeaways should be actionable insights (5-7 items)
-- Topics should be technical concepts covered (3-7 items)
-- Output ONLY the JSON, nothing else"#,
+  YOUR TASK:
+  1. Find connections and cross-references between sections
+  2. Use web search to fill knowledge gaps or add context
+  3. Rewrite section summaries to be clearer and more connected
+  4. Extract actionable takeaways from all available information
+  5. Assess cognitive difficulty (how hard to understand, not technical complexity)
+
+  OUTPUT: Return ONLY valid JSON:
+  {{
+    "title": "Clear, descriptive video title",
+    "summary": "3-4 sentences explaining what viewer will learn and why it matters",
+    "duration_minutes": <number>,
+    "language": "{lang}",
+    "difficulty": "Easy to understand|Moderate cognitive load|Cognitively demanding",
+    "key_takeaways": [
+      "Actionable insight 1 (what viewer should do/remember)",
+      "Actionable insight 2",
+      "..."
+    ],
+    "sections": [
+      {{
+        "start_seconds": 0.0,
+        "end_seconds": 180.0,
+        "title": "Section title",
+        "summary": "Refined summary with cross-references and enriched context. Example: 'This builds on the concept from Section 2...'"
+      }}
+    ]
+  }}
+
+  RULES:
+  - Cross-reference related concepts across sections in summaries
+  - Use web search when you need to clarify complex terms or add context
+  - Key takeaways = 5-7 actionable insights (what to DO, not just what was said)
+  - Difficulty based on: concept density, abstraction level, prerequisite knowledge needed
+  - Rewrite section summaries to be self-contained but connected
+  - Focus on making content easy to understand and retain
+  - Output ONLY JSON, nothing else"#,
         lang = report_lang
     );
 
@@ -226,7 +240,8 @@ Rules:
         .header("Authorization", format!("Bearer {}", api_key))
         .json(&serde_json::json!({
             "model": config.model,
-            "messages": [
+                    "tools": [{"type": "web_search"}],
+            "input": [
                 {
                     "role": "system",
                     "content": &system_prompt,
@@ -243,11 +258,13 @@ Rules:
         .json::<serde_json::Value>()
         .await?;
 
-    // Extract content from response
-    let content = response["choices"][0]["message"]["content"]
-        .as_str()
+    // Extract content from response - /v1/responses format
+    let content = response["output"]
+        .as_array()
+        .and_then(|arr| arr.iter().rev().find(|item| item["type"] == "message"))
+        .and_then(|msg| msg["content"][0]["text"].as_str())
         .ok_or_else(|| BratishkaError::ReportFailed {
-            reason: format!("Invalid API response: {:?}", response),
+            reason: format!("Invalid API response structure: {:?}", response),
         })?;
 
     // Parse JSON content into VideoReport

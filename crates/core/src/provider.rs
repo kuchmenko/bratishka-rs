@@ -22,8 +22,8 @@ impl Provider {
     pub fn config(&self) -> ProviderConfig {
         match self {
             Provider::Grok => ProviderConfig {
-                api_url: "https://api.x.ai/v1/chat/completions",
-                model: "grok-4-fast",
+                api_url: "https://api.x.ai/v1/responses",
+                model: "grok-4-1-fast",
                 env_var: "XAI_API_KEY",
             },
             Provider::Openai => ProviderConfig {

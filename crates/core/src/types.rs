@@ -20,16 +20,13 @@ pub struct VideoReport {
     pub summary: String,
     pub duration_minutes: f64,
     pub language: String,
-    pub difficulty: String,
-    pub topics: Vec<String>,
+    pub difficulty: String, // "Easy to understand" | "Moderate" | "Cognitively demanding"
     pub key_takeaways: Vec<String>,
-    pub chapters: Vec<Chapter>,
-    pub prerequisites: Vec<String>,
-    pub target_audience: String,
+    pub sections: Vec<Section>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Chapter {
+pub struct Section {
     pub start_seconds: f64,
     pub end_seconds: f64,
     pub title: String,
