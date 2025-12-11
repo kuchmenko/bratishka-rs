@@ -6,6 +6,7 @@
 pub mod cache;
 pub mod error;
 pub mod format;
+pub mod inteligence;
 pub mod pipeline;
 pub mod provider;
 pub mod types;

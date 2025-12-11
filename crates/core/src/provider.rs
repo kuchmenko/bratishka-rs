@@ -1,4 +1,8 @@
-use crate::error::{BratishkaError, Result};
+#[derive(Debug, thiserror::Error)]
+pub enum ProviderError {
+    #[error("Missing API key for {provider_name}")]
+    MissingApiKey { provider_name: String },
+}
 
 #[derive(Clone, Debug, Default)]
 pub enum Provider {
@@ -44,10 +48,10 @@ impl Provider {
     }
 
     /// Validate that the API key is set for this provider
-    pub fn validate_api_key(&self) -> Result<String> {
+    pub fn validate_api_key(&self) -> Result<String, ProviderError> {
         let config = self.config();
-        std::env::var(config.env_var).map_err(|_| BratishkaError::MissingApiKey {
-            env_var: config.env_var.to_string(),
+        std::env::var(config.env_var).map_err(|_| ProviderError::MissingApiKey {
+            provider_name: self.name().to_string(),
         })
     }
 }

@@ -8,6 +8,7 @@ use crate::{
     cache::get_model_dir,
     error::{BratishkaError, Result},
     format::format_transcript_with_timestamps,
+    inteligence::analyze_sections,
     provider::Provider,
     types::{Transcript, VideoReport},
 };
@@ -178,7 +179,9 @@ pub async fn generate_report(
     let duration_seconds = transcript.segments.last().map(|s| s.end).unwrap_or(0.0);
     let duration_minutes = duration_seconds / 60.0;
 
-    let formatted_transcript = format_transcript_with_timestamps(transcript);
+    let sections = analyze_sections(provider, transcript).await?;
+
+    println!("SECTIONS: {:?}", sections);
 
     let system_prompt = format!(
         r#"You are a video content analyzer. Your task is to analyze video transcripts and generate structured reports.
@@ -210,9 +213,11 @@ Rules:
         lang = report_lang
     );
 
+    let prepared_sections = serde_json::to_string_pretty(&sections)?;
+
     let user_prompt = format!(
         "Analyze this video transcript (duration: {:.1} minutes, language: {}):\n\n{}",
-        duration_minutes, transcript.language, formatted_transcript
+        duration_minutes, transcript.language, prepared_sections
     );
 
     let response = reqwest::Client::new()

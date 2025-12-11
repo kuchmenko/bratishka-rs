@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 use thiserror::Error;
 
+use crate::{inteligence::InteligenceError, provider::ProviderError};
+
 #[derive(Error, Debug)]
 pub enum BratishkaError {
     #[error("Download failed for {url}: {reason}")]
@@ -29,6 +31,12 @@ pub enum BratishkaError {
 
     #[error("Model download failed: {url}: {reason}")]
     ModelDownloadFailed { url: String, reason: String },
+
+    #[error("Failed to process sections: {0}")]
+    ProcessSectionsFailed(#[from] InteligenceError),
+
+    #[error("Unexpected error in provider: {0}")]
+    UnexpectedProviderError(#[from] ProviderError),
 }
 
 pub type Result<T> = std::result::Result<T, BratishkaError>;
