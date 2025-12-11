@@ -12,6 +12,10 @@ repository.workspace = true
 name = "bratishka"
 path = "src/main.rs"
 
+[features]
+default = ["cuda"]
+cuda = ["bratishka-core/cuda"]
+
 [dependencies]
 bratishka-core = { path = "../../crates/core" }
 tokio = { workspace = true }

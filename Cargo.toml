@@ -21,4 +21,4 @@ indicatif = "0.18.3"
 console = "0.16.1"
 iced = "0.13"
 hound = "3.5.1"
-whisper-rs = { version = "0.15.1", features = ["cuda"] }
+whisper-rs = "0.15.1"
