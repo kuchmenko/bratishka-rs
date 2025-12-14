@@ -18,7 +18,7 @@ fn format_duration(d: Duration) -> String {
 use bratishka_core::{
     Provider, cache::get_root_cache_dir, download_video, extract_audio, find_video_in_cache,
     format_report_readable, generate_report, get_audio_path, get_cache_dir, get_report_path,
-    get_transcript_path, load_report, load_transcript, pipeline::ensure_model, save_report,
+    get_transcript_path, load_report, load_transcript, pipeline_old::ensure_model, save_report,
     transcribe_audio,
 };
 
