@@ -1,15 +1,14 @@
-pub mod action;
-pub mod analyzer;
 pub mod cache;
 pub mod error;
+pub mod events;
 pub mod format;
 pub mod inteligence;
-pub mod pipeline;
 pub mod pipeline_old;
 pub mod provider;
-pub mod source;
+pub mod queues;
+pub mod routes;
 pub mod types;
-pub mod workflow;
+pub mod workers;
 
 pub use cache::{
     find_video_in_cache, get_audio_path, get_cache_dir, get_report_path, get_transcript_path,
