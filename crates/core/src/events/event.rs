@@ -52,8 +52,21 @@ pub struct EnrichedEvent {
     pub ingested_at: Instant,
 }
 
-fn downcast_ref<T: 'static>(event: &Arc<dyn Event>) -> Option<&T> {
-    event.as_any().downcast_ref::<T>()
+pub fn downcast_ref<T: 'static>(e: &Arc<dyn Event>) -> Option<&T> {
+    e.as_any().downcast_ref::<T>()
+}
+
+pub fn expect<'a, T: 'static>(
+    e: &'a Arc<dyn Event>,
+    expected_event_type: &'static str,
+) -> anyhow::Result<&'a T> {
+    downcast_ref::<T>(e).ok_or_else(|| {
+        anyhow::anyhow!(
+            "expected event_type={}, got={}",
+            expected_event_type,
+            e.event_type()
+        )
+    })
 }
 
 pub trait EventExt {

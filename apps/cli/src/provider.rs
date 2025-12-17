@@ -4,7 +4,7 @@ pub enum ProviderError {
     MissingApiKey { provider_name: String },
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub enum Provider {
     #[default]
     Grok,

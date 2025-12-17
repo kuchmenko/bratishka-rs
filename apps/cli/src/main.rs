@@ -6,6 +6,28 @@ use console::style;
 use indicatif::{ProgressBar, ProgressStyle};
 use tokio::fs;
 
+use crate::{
+    cache::{
+        find_video_in_cache, get_audio_path, get_cache_dir, get_report_path, get_root_cache_dir,
+        get_transcript_path,
+    },
+    format::format_report_readable,
+    pipeline_old::{
+        download_video, ensure_model, extract_audio, generate_report, load_report, load_transcript,
+        save_report, transcribe_audio,
+    },
+    provider::Provider,
+};
+
+mod cache;
+mod error;
+mod format;
+mod inteligence;
+mod pipeline_old;
+mod provider;
+mod types;
+mod workers;
+
 fn format_duration(d: Duration) -> String {
     let secs = d.as_secs_f64();
     if secs < 60.0 {
@@ -14,13 +36,6 @@ fn format_duration(d: Duration) -> String {
         format!("{:.0}m {:.0}s", secs / 60.0, secs % 60.0)
     }
 }
-
-use bratishka_core::{
-    Provider, cache::get_root_cache_dir, download_video, extract_audio, find_video_in_cache,
-    format_report_readable, generate_report, get_audio_path, get_cache_dir, get_report_path,
-    get_transcript_path, load_report, load_transcript, pipeline_old::ensure_model, save_report,
-    transcribe_audio,
-};
 
 /// CLI wrapper for Provider enum (needed for clap ValueEnum)
 #[derive(Clone, Default, ValueEnum)]

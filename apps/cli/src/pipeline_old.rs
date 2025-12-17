@@ -4,7 +4,6 @@ use tokio::{fs, process::Command};
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
 use crate::{
-    Segment,
     cache::get_model_dir,
     error::{BratishkaError, Result},
     inteligence::analyze_sections,

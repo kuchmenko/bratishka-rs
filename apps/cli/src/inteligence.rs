@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Provider, Transcript, provider::ProviderError};
+use crate::{
+    provider::{Provider, ProviderError},
+    types::Transcript,
+};
 
 static SECTIONS_ANALYSIS_PROMPT: &str = r#"
   You are a video content analyzer. You have access to web search to enrich your analysis.
