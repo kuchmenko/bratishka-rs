@@ -49,6 +49,7 @@ static SECTIONS_ANALYSIS_PROMPT: &str = r#"
   - Summary should educate, not just describe
 "#;
 
+#[derive(Default)]
 pub struct AnalyzeSectionsWorker;
 
 #[derive(Debug, thiserror::Error)]

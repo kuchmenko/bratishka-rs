@@ -12,6 +12,7 @@ use crate::{
     workers::events::{ReportCompiled, SectionsAnalyzed, SourceSection},
 };
 
+#[derive(Default)]
 pub struct CompileReportWorker;
 
 impl CompileReportWorker {
@@ -154,6 +155,7 @@ impl Worker for CompileReportWorker {
             req.job.clone(),
             report,
         )));
-        todo!()
+
+        Ok(())
     }
 }

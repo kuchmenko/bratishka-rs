@@ -3,7 +3,7 @@ use std::{path::PathBuf, time::SystemTime};
 use bratishka_core::events::Event;
 use uuid::Uuid;
 
-use crate::{provider::Provider, workers::events::EventHeader};
+use crate::{pipeline_old::ensure_model, provider::Provider, workers::events::EventHeader};
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct JobSpec {
@@ -15,7 +15,28 @@ pub struct JobSpec {
     // pure derived values
     pub root_cache_dir: PathBuf,
     pub cache_dir: PathBuf,
-    pub model_path: String,
+    pub model_path: PathBuf,
+}
+
+impl JobSpec {
+    pub async fn from_cli(cli: crate::Cli) -> anyhow::Result<Self> {
+        let provider: Provider = cli.provider.into();
+
+        let root_cache_dir = crate::cache::get_root_cache_dir();
+        let cache_dir = crate::cache::get_cache_dir(&cli.url);
+        std::fs::create_dir_all(&cache_dir)?;
+        let model_path = ensure_model(&root_cache_dir).await?;
+
+        Ok(Self {
+            url: cli.url,
+            force: cli.force,
+            provider,
+            requested_report_lang: cli.lang,
+            root_cache_dir,
+            cache_dir,
+            model_path,
+        })
+    }
 }
 
 #[derive(serde::Serialize)]

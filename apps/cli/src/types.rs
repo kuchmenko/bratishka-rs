@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::format::format_report_readable;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transcript {
     pub text: String,
@@ -14,7 +16,7 @@ pub struct Segment {
     pub text: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VideoReport {
     pub title: String,
     pub summary: String,
@@ -25,10 +27,16 @@ pub struct VideoReport {
     pub sections: Vec<Section>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Section {
     pub start_seconds: f64,
     pub end_seconds: f64,
     pub title: String,
     pub summary: String,
+}
+
+impl VideoReport {
+    pub fn display(&self) -> String {
+        format_report_readable(self)
+    }
 }

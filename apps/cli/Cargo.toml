@@ -14,7 +14,7 @@ path = "src/main.rs"
 
 [features]
 default = ["cuda"]
-cuda = ["bratishka-core/cuda"]
+cuda = ["whisper-rs/cuda"]
 
 [dependencies]
 bratishka-core = { path = "../../crates/core" }

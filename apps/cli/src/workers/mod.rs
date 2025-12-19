@@ -1,4 +1,5 @@
 pub mod analyze_sections;
+pub mod cli_completion_sink;
 pub mod compile_report;
 pub mod download_video;
 pub mod events;

@@ -4,7 +4,7 @@ default:
 
 # Run CLI (usage: just cli "https://youtube.com/...")
 cli *ARGS:
-    cargo run --release -p bratishka -- {{ARGS}}
+    cargo run -p bratishka -- {{ARGS}}
 
 # Run desktop app
 desktop:

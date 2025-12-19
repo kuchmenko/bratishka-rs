@@ -12,13 +12,10 @@ use tokio::process::Command;
 
 use crate::workers::events::{YoutubeUrlRequested, YoutubeVideoDownloaded};
 
+#[derive(Default)]
 pub struct DownloadVideoWorker;
 
 impl DownloadVideoWorker {
-    pub fn new() -> Self {
-        Self
-    }
-
     pub async fn download_video(url: &str, cache_dir: &Path) -> anyhow::Result<PathBuf> {
         let output_template = cache_dir.join("video.%(ext)s");
         let output = Command::new("yt-dlp")

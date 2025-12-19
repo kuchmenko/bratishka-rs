@@ -1,4 +1,7 @@
-use std::{path::Path, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use bratishka_core::{
     events::{EnrichedEvent, EventBus, expect},
@@ -13,6 +16,7 @@ use crate::{
     workers::events::{AudioTranscribed, YoutubeAudioExtracted},
 };
 
+#[derive(Default)]
 pub struct TranscribeAudioWorker;
 
 impl TranscribeAudioWorker {
@@ -23,7 +27,7 @@ impl TranscribeAudioWorker {
     async fn transcribe_audio(
         audio_path: &Path,
         output_path: &Path,
-        model_path: &str,
+        model_path: &PathBuf,
     ) -> anyhow::Result<Transcript> {
         let mut reader = hound::WavReader::open(audio_path).unwrap();
         let samples: Vec<f32> = reader
@@ -38,8 +42,9 @@ impl TranscribeAudioWorker {
             ..Default::default()
         };
         ctx_params.flash_attn = true;
-        let ctx =
-            WhisperContext::new_with_params(model_path, ctx_params).expect("failed to load model");
+        let model_path_str = model_path.to_str().unwrap();
+        let ctx = WhisperContext::new_with_params(model_path_str, ctx_params)
+            .expect("failed to load model");
 
         // create a params object
         let params = FullParams::new(SamplingStrategy::Greedy { best_of: 5 });

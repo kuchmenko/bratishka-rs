@@ -8,7 +8,7 @@ use crate::{
     error::{BratishkaError, Result},
     inteligence::analyze_sections,
     provider::Provider,
-    types::{Transcript, VideoReport},
+    types::{Segment, Transcript, VideoReport},
 };
 
 pub const MODEL_NAME: &str = "ggml-medium-q5_0.bin";

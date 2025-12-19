@@ -12,6 +12,7 @@ use tokio::process::Command;
 
 use crate::workers::events::{YoutubeAudioExtracted, YoutubeVideoDownloaded};
 
+#[derive(Default)]
 pub struct ExtractAudioWorker;
 
 impl ExtractAudioWorker {

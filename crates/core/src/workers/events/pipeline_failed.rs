@@ -7,15 +7,15 @@ use crate::events::Event;
 
 #[derive(Serialize)]
 pub struct PipelineFailed {
-    event_id: Uuid,
-    ts: SystemTime,
-    parents: [Uuid; 1],
-    stage: &'static str,
-    message: String,
+    pub event_id: Uuid,
+    pub ts: SystemTime,
+    pub parents: [Uuid; 1],
+    pub stage: &'static str,
+    pub message: String,
 }
 
 impl PipelineFailed {
-    pub const TYPE: &'static str = "pipeline.failed";
+    pub const EVENT_TYPE: &'static str = "pipeline.failed";
 
     pub fn new(event: Arc<dyn Event>, subscriber_id: &'static str, message: String) -> Self {
         Self {
